@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pelvic Training Club</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        ntc: {
+                            green: '#c0ff00', // Neon Volt Green
+                            dark: '#111111',
+                            gray: '#222222',
+                            lightGray: '#888888'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { background-color: #111111; color: white; -webkit-tap-highlight-color: transparent; }
+        .circle-progress { transition: stroke-dashoffset 1s linear; }
+        .pulse-animation { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(192, 255, 0, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(192, 255, 0, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(192, 255, 0, 0); }
+        }
+        .slide-up { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- SISTEMA DE AUDIO Y VIBRACIÓN ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        const playSound = (type = 'bubble') => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            if (type === 'bubble') {
+                // Sonido tipo gota/burbuja de Whatsapp (Grave, decaimiento rápido)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.15);
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.02);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.15);
+            } else if (type === 'milestone') {
+                // Sonido un poco más notorio para hitos intermedios (ej. min/max del ejercicio)
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(250, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.8, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 0.3);
+            }
+        };
+
+        const vibrateDevice = (pattern = [200, 100, 200]) => {
+            if ('vibrate' in navigator) {
+                navigator.vibrate(pattern);
+            }
+        };
+
+        const triggerFeedback = (type = 'bubble') => {
+            playSound(type);
+            vibrateDevice(type === 'milestone' ? [300] : [100]);
+        };
+
+        // --- ICONOS COMPONENTES ---
+        const Icon = ({ name, size = 24, className = "" }) => {
+            const iconRef = useRef(null);
+            useEffect(() => {
+                if (iconRef.current) {
+                    iconRef.current.innerHTML = '';
+                    const iconElement = document.createElement('i');
+                    iconElement.setAttribute('data-lucide', name);
+                    iconElement.setAttribute('width', size);
+                    iconElement.setAttribute('height', size);
+                    iconRef.current.appendChild(iconElement);
+                    lucide.createIcons({ root: iconRef.current });
+                }
+            }, [name, size]);
+            return <span ref={iconRef} className={`inline-flex items-center justify-center ${className}`}></span>;
+        };
+
+        // --- DATOS DEL PROTOCOLO ---
+        const getPhaseData = (phaseNum) => {
+            const phases = [
+                { id: 0, title: 'Fase 0: Calibración', weeks: 'Semana 1', desc: 'Aislamiento sensorial y conexión mente-músculo.' },
+                { id: 1, title: 'Fase 1: Base', weeks: 'Semanas 2-4', desc: 'Acondicionamiento de fibras lentas y rápidas.' },
+                { id: 2, title: 'Fase 2: Hipertrofia', weeks: 'Semanas 5-8', desc: 'Fuerza funcional y resistencia contra gravedad.' },
+                { id: 3, title: 'Fase 3: Integración', weeks: 'Semanas 9-12', desc: 'Terapia conductual y control de excitación.' },
+                { id: 4, title: 'Fase 4: Mantenimiento', weeks: 'Semana 13+', desc: 'Prevención de regresión. Hábitos de por vida.' },
+            ];
+            return phases[phaseNum];
+        };
+
+        // Generador de Rutinas
+        const generateRoutine = (phase, profile) => {
+            const actionWord = profile === 'hyper' ? 'Expande (Kegel Inverso)' : 'Contrae (Kegel)';
+            const routine = [];
+            
+            if (phase === 1) {
+                // Fase 1: 10 lentos, 1m descanso, 10 rapidos
+                for(let i=0; i<10; i++) {
+                    routine.push({ type: 'work', time: 5, title: `${actionWord} Fuerte`, desc: `Lento rep ${i+1}/10` });
+                    routine.push({ type: 'rest', time: 5, title: 'Descanso Total', desc: 'Relaja completamente', nextInfo: 'Prepárate para contraer' });
+                }
+                routine.push({ type: 'rest', time: 60, title: 'Descanso Activo', desc: 'Respiración abdominal profunda', nextInfo: 'Siguen contracciones rápidas' });
+                for(let i=0; i<10; i++) {
+                    routine.push({ type: 'work', time: 1, title: `${actionWord} Rápido`, desc: `Rápido rep ${i+1}/10` });
+                }
+            } else if (phase === 2 || phase === 4) {
+                // Fase 2/4: 10 lentos prolongados, Maratón 30s, 10 rapidos
+                for(let i=0; i<10; i++) {
+                    routine.push({ type: 'work', time: 10, title: `${actionWord} Prolongado`, desc: `Rep ${i+1}/10` });
+                    routine.push({ type: 'rest', time: 10, title: 'Descanso Total', desc: 'Recupera energía', nextInfo: 'Prepárate para contraer' });
+                }
+                routine.push({ type: 'work', time: 30, title: 'El Maratón', desc: `${actionWord} al 50%. ¡Sigue respirando!`, milestones: [20, 30] });
+                routine.push({ type: 'rest', time: 30, title: 'Descanso Post-Maratón', desc: 'Relaja', nextInfo: 'Siguen contracciones rápidas' });
+                for(let i=0; i<10; i++) {
+                    routine.push({ type: 'work', time: 1, title: `${actionWord} Rápido`, desc: `Ráfaga rep ${i+1}/10` });
+                }
+            }
+            return routine;
+        };
+
+        // --- ESTADO INICIAL ---
+        const initialState = {
+            isOnboarded: false,
+            profile: 'hypo', // 'hypo' o 'hyper'
+            currentPhase: 0,
+            currentWeek: 1,
+        };
+
+        // --- COMPONENTE PRINCIPAL ---
+        const App = () => {
+            const [state, setState] = useState(() => {
+                const saved = localStorage.getItem('ptc_state');
+                return saved ? JSON.parse(saved) : initialState;
+            });
+            const [currentView, setCurrentView] = useState(state.isOnboarded ? 'dashboard' : 'onboarding');
+
+            useEffect(() => {
+                localStorage.setItem('ptc_state', JSON.stringify(state));
+            }, [state]);
+
+            const updateState = (updates) => {
+                setState(prev => ({ ...prev, ...updates }));
+            };
+
+            const resetProgress = () => {
+                if(confirm("¿Estás seguro de reiniciar todo tu progreso? Esto no se puede deshacer.")) {
+                    setState(initialState);
+                    setCurrentView('onboarding');
+                }
+            };
+
+            const navigate = (view) => {
+                // Reproducir un sonido en blanco para desbloquear el AudioContext en Safari/iOS al interactuar
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                    const osc = audioCtx.createOscillator();
+                    osc.connect(audioCtx.destination);
+                    osc.start(); osc.stop(audioCtx.currentTime + 0.01);
+                }
+                setCurrentView(view);
+            };
+
+            return (
+                <div className="min-h-screen bg-ntc-dark text-white font-sans max-w-md mx-auto relative overflow-hidden flex flex-col">
+                    {currentView === 'onboarding' && <Onboarding onComplete={(profile) => { updateState({ isOnboarded: true, profile }); navigate('dashboard'); }} />}
+                    {currentView === 'dashboard' && <Dashboard state={state} onStart={() => navigate('pre_workout')} onReset={resetProgress} onAdvancePhase={() => updateState({currentPhase: Math.min(4, state.currentPhase + 1)})} />}
+                    {currentView === 'pre_workout' && <PreWorkout phase={state.currentPhase} onReady={() => navigate(state.currentPhase === 0 ? 'phase0' : state.currentPhase === 3 ? 'phase3' : 'workout')} onBack={() => navigate('dashboard')} />}
+                    {currentView === 'phase0' && <Phase0 onComplete={() => { updateState({ currentPhase: 1, currentWeek: 2 }); navigate('dashboard'); }} />}
+                    {currentView === 'workout' && <Workout phase={state.currentPhase} profile={state.profile} onComplete={() => navigate('dashboard')} onQuit={() => navigate('dashboard')} />}
+                    {currentView === 'phase3' && <Phase3 profile={state.profile} setProfile={(p) => updateState({profile: p})} onComplete={() => navigate('dashboard')} />}
+                </div>
+            );
+        };
+
+        // --- VISTAS ---
+
+        const Onboarding = ({ onComplete }) => {
+            return (
+                <div className="flex-1 flex flex-col justify-center p-6 slide-up">
+                    <Icon name="activity" size={48} className="text-ntc-green mb-6 mx-auto" />
+                    <h1 className="text-3xl font-bold text-center mb-8 uppercase tracking-wide">Configuración<br/>Inicial</h1>
+                    <p className="text-ntc-lightGray text-center mb-10 text-lg">Para personalizar tu terapia, necesitamos saber un detalle importante.</p>
+                    
+                    <div className="bg-ntc-gray p-6 rounded-xl mb-8 border border-ntc-gray/50 shadow-lg">
+                        <p className="font-semibold text-lg mb-6 leading-tight">¿Sientes dolor pélvico crónico, dificultad/vacilación al orinar, o dolor al eyacular?</p>
+                        <div className="space-y-4">
+                            <button onClick={() => onComplete('hyper')} className="w-full bg-ntc-green text-ntc-dark font-bold py-4 rounded-full text-lg active:scale-95 transition-transform uppercase tracking-wider">Sí, presento síntomas</button>
+                            <button onClick={() => onComplete('hypo')} className="w-full bg-transparent border-2 border-white text-white font-bold py-4 rounded-full text-lg active:scale-95 transition-transform uppercase tracking-wider">No, no presento síntomas</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Dashboard = ({ state, onStart, onReset, onAdvancePhase }) => {
+            const phase = getPhaseData(state.currentPhase);
+            return (
+                <div className="flex-1 flex flex-col p-6 slide-up overflow-y-auto">
+                    <div className="flex justify-between items-center mb-8 pt-4">
+                        <div className="flex items-center gap-2">
+                            <Icon name="zap" className="text-ntc-green" />
+                            <span className="font-bold tracking-widest uppercase">Pelvic TC</span>
+                        </div>
+                        <button onClick={onReset} className="text-ntc-lightGray p-2"><Icon name="settings" size={20}/></button>
+                    </div>
+
+                    <div className="mb-10">
+                        <p className="text-ntc-green font-bold uppercase tracking-widest mb-2">{phase.weeks}</p>
+                        <h1 className="text-4xl font-extrabold uppercase leading-none mb-4">{phase.title}</h1>
+                        <p className="text-ntc-lightGray text-lg leading-snug">{phase.desc}</p>
+                        {state.profile === 'hyper' && (
+                            <div className="mt-4 bg-ntc-green/10 text-ntc-green border border-ntc-green/20 p-3 rounded-lg flex items-start gap-3">
+                                <Icon name="info" size={20} className="shrink-0 mt-0.5" />
+                                <p className="text-sm font-medium">Perfil Hipertónico activado: Tus rutinas usarán técnicas de relajación y expansión (Kegel Inverso).</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <button onClick={onStart} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform shadow-[0_0_20px_rgba(192,255,0,0.3)] mb-8 flex items-center justify-center gap-2">
+                        <Icon name="play" fill="currentColor" size={24} />
+                        Iniciar Sesión
+                    </button>
+
+                    <div className="mt-auto border-t border-ntc-gray pt-6 pb-4">
+                        <p className="text-sm text-ntc-lightGray mb-4 uppercase tracking-widest font-bold">Opciones de Desarrollador</p>
+                        <button onClick={onAdvancePhase} className="w-full bg-ntc-gray text-white py-3 rounded-xl text-sm font-semibold active:bg-gray-700">Avanzar a la siguiente Fase (Test)</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const PreWorkout = ({ phase, onReady, onBack }) => {
+            // Determinar postura si es fase 2
+            const hour = new Date().getHours();
+            let posture = "Decúbito supino (Boca arriba, rodillas dobladas)";
+            if (phase === 2 || phase === 4) {
+                if (hour < 12) posture = "Sentado (Espalda recta, inclinado adelante)";
+                else if (hour < 18) posture = "De pie (Piernas separadas, relajado)";
+            }
+
+            return (
+                <div className="flex-1 flex flex-col p-6 slide-up bg-ntc-dark">
+                    <button onClick={onBack} className="self-start text-ntc-green mb-6 flex items-center gap-1 font-bold uppercase text-sm"><Icon name="arrow-left" size={16}/> Volver</button>
+                    
+                    <h2 className="text-3xl font-black uppercase mb-8">Reglas<br/>de la sesión</h2>
+                    
+                    <div className="space-y-6 flex-1">
+                        <div className="bg-ntc-gray p-5 rounded-2xl flex gap-4 items-start">
+                            <div className="bg-ntc-dark p-3 rounded-full text-ntc-green shrink-0"><Icon name="wind"/></div>
+                            <div>
+                                <h3 className="font-bold text-lg mb-1 uppercase">Respiración</h3>
+                                <p className="text-ntc-lightGray text-sm">No contengas la respiración (Maniobra Valsalva). Respira fluido o cuenta en voz alta.</p>
+                            </div>
+                        </div>
+                        <div className="bg-ntc-gray p-5 rounded-2xl flex gap-4 items-start">
+                            <div className="bg-ntc-dark p-3 rounded-full text-ntc-green shrink-0"><Icon name="eye-off"/></div>
+                            <div>
+                                <h3 className="font-bold text-lg mb-1 uppercase">Aislamiento</h3>
+                                <p className="text-ntc-lightGray text-sm">El movimiento es invisible. No aprietes glúteos, muslos ni abdomen.</p>
+                            </div>
+                        </div>
+                        {(phase !== 0 && phase !== 3) && (
+                            <div className="bg-ntc-gray p-5 rounded-2xl flex gap-4 items-start border border-ntc-green/30">
+                                <div className="bg-ntc-dark p-3 rounded-full text-ntc-green shrink-0"><Icon name="accessibility"/></div>
+                                <div>
+                                    <h3 className="font-bold text-lg mb-1 uppercase text-ntc-green">Postura Requerida</h3>
+                                    <p className="text-white text-sm font-medium">{posture}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <button onClick={onReady} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform mt-8">Entendido</button>
+                </div>
+            );
+        };
+
+        const Phase0 = ({ onComplete }) => {
+            const [step, setStep] = useState(0);
+            const steps = [
+                { title: "1. Prueba de Micción", desc: "Instrucción de diagnóstico: La próxima vez que orines, intenta detener el flujo a la mitad. Hazlo SOLO UNA VEZ en tu vida para memorizar el músculo. (No lo uses como ejercicio, daña la vejiga)." },
+                { title: "2. Confirmación Visual", desc: "El 'Ascensor': Frente a un espejo, contrae el músculo. El pene debe retraerse ligeramente como una tortuga y los testículos deben elevarse." },
+                { title: "3. Confirmación Táctil", desc: "Coloca los dedos en el periné (entre ano y testículos). Al contraer, debes sentir una banda muscular que se endurece y empuja hacia adentro." }
+            ];
+
+            return (
+                <div className="flex-1 flex flex-col p-6 slide-up">
+                    <h2 className="text-3xl font-black uppercase mb-2 text-ntc-green">Fase 0</h2>
+                    <p className="text-xl font-bold uppercase mb-8">Calibración</p>
+
+                    <div className="flex-1">
+                        <div className="bg-ntc-gray p-6 rounded-2xl">
+                            <h3 className="text-2xl font-bold mb-4">{steps[step].title}</h3>
+                            <p className="text-lg text-ntc-lightGray leading-relaxed">{steps[step].desc}</p>
+                        </div>
+                    </div>
+
+                    {step < 2 ? (
+                        <button onClick={() => setStep(s => s+1)} className="w-full bg-white text-ntc-dark font-black py-5 rounded-full text-lg uppercase tracking-widest active:scale-95 transition-transform mb-6">Siguiente Paso</button>
+                    ) : (
+                        <button onClick={onComplete} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-lg uppercase tracking-widest active:scale-95 transition-transform mb-6 flex justify-center gap-2 pulse-animation">
+                            <Icon name="check-circle" size={24}/> Ya logré aislar el músculo
+                        </button>
+                    )}
+                </div>
+            );
+        };
+
+        const Workout = ({ phase, profile, onComplete, onQuit }) => {
+            const [routine, setRoutine] = useState([]);
+            const [currentIndex, setCurrentIndex] = useState(0);
+            const [timeLeft, setTimeLeft] = useState(0);
+            const [isActive, setIsActive] = useState(false);
+            const [isFinished, setIsFinished] = useState(false);
+
+            useEffect(() => {
+                const generated = generateRoutine(phase, profile);
+                setRoutine(generated);
+                if (generated.length > 0) {
+                    setTimeLeft(generated[0].time);
+                }
+            }, [phase, profile]);
+
+            useEffect(() => {
+                let interval;
+                if (isActive && timeLeft > 0) {
+                    interval = setInterval(() => {
+                        setTimeLeft(prev => {
+                            const newTime = prev - 1;
+                            const currentExercise = routine[currentIndex];
+                            
+                            // Lógica de hitos (milestones) para sonido en ejercicios largos (ej. 20s y 30s)
+                            if (currentExercise && currentExercise.type === 'work' && currentExercise.milestones) {
+                                const timeElapsed = currentExercise.time - newTime;
+                                if (currentExercise.milestones.includes(timeElapsed)) {
+                                    triggerFeedback('milestone');
+                                }
+                            }
+                            return newTime;
+                        });
+                    }, 1000);
+                } else if (isActive && timeLeft === 0) {
+                    // Fin del ejercicio actual
+                    triggerFeedback('bubble');
+                    
+                    if (currentIndex < routine.length - 1) {
+                        const nextIndex = currentIndex + 1;
+                        setCurrentIndex(nextIndex);
+                        setTimeLeft(routine[nextIndex].time);
+                    } else {
+                        setIsActive(false);
+                        setIsFinished(true);
+                        triggerFeedback('milestone');
+                    }
+                }
+                return () => clearInterval(interval);
+            }, [isActive, timeLeft, currentIndex, routine]);
+
+            const toggleTimer = () => setIsActive(!isActive);
+
+            if (routine.length === 0) return null;
+
+            if (isFinished) {
+                return (
+                    <div className="flex-1 flex flex-col justify-center items-center p-6 slide-up text-center">
+                        <Icon name="award" size={80} className="text-ntc-green mb-6" />
+                        <h2 className="text-4xl font-black uppercase mb-4">¡Sesión Completada!</h2>
+                        <p className="text-ntc-lightGray text-lg mb-10">Excelente trabajo aislando y controlando.</p>
+                        <button onClick={onComplete} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform">Finalizar</button>
+                    </div>
+                );
+            }
+
+            const currentExercise = routine[currentIndex];
+            const isRest = currentExercise.type === 'rest';
+            const progressPercent = ((currentExercise.time - timeLeft) / currentExercise.time) * 100;
+            const circleRadius = 120;
+            const circleCircumference = 2 * Math.PI * circleRadius;
+            const strokeDashoffset = circleCircumference - (progressPercent / 100) * circleCircumference;
+
+            return (
+                <div className={`flex-1 flex flex-col p-6 slide-up transition-colors duration-500 ${isRest ? 'bg-[#1a1a1a]' : 'bg-ntc-dark'}`}>
+                    <div className="flex justify-between items-center mb-8">
+                        <button onClick={onQuit} className="text-ntc-lightGray"><Icon name="x" size={28}/></button>
+                        <span className="text-sm font-bold tracking-widest uppercase text-ntc-lightGray">{currentIndex + 1} / {routine.length}</span>
+                        <div className="w-7"></div>
+                    </div>
+
+                    <div className="flex-1 flex flex-col items-center justify-center relative">
+                        {/* Circular Timer */}
+                        <div className="relative w-72 h-72 mb-8 flex items-center justify-center">
+                            <svg className="w-full h-full -rotate-90 absolute top-0 left-0" viewBox="0 0 260 260">
+                                <circle cx="130" cy="130" r={circleRadius} stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="none" />
+                                <circle 
+                                    className="circle-progress"
+                                    cx="130" cy="130" r={circleRadius} 
+                                    stroke={isRest ? '#888888' : '#c0ff00'} 
+                                    strokeWidth="12" fill="none" 
+                                    strokeLinecap="round"
+                                    strokeDasharray={circleCircumference}
+                                    strokeDashoffset={strokeDashoffset}
+                                />
+                            </svg>
+                            <div className="text-center z-10 flex flex-col items-center">
+                                <span className={`text-7xl font-black tabular-nums ${isRest ? 'text-white' : 'text-ntc-green'}`}>
+                                    {timeLeft}
+                                </span>
+                                <span className="text-sm font-bold uppercase tracking-widest mt-2 text-ntc-lightGray">Segundos</span>
+                            </div>
+                        </div>
+
+                        <div className="text-center px-4 w-full">
+                            <h2 className={`text-3xl font-black uppercase mb-2 ${isRest ? 'text-white' : 'text-ntc-green'}`}>
+                                {currentExercise.title}
+                            </h2>
+                            <p className="text-xl text-ntc-lightGray font-medium h-12 flex items-center justify-center">
+                                {currentExercise.desc}
+                            </p>
+                        </div>
+
+                        {isRest && currentExercise.nextInfo && (
+                            <div className="mt-8 bg-ntc-gray w-full p-4 rounded-xl text-center border border-white/10 slide-up">
+                                <p className="text-sm text-ntc-green uppercase tracking-widest font-bold mb-1">Siguiente</p>
+                                <p className="text-white font-medium">{currentExercise.nextInfo}</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="mt-auto pt-6">
+                        <button 
+                            onClick={toggleTimer} 
+                            className={`w-full font-black py-6 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform flex justify-center gap-2 items-center ${isActive ? 'bg-transparent border-2 border-white text-white' : 'bg-ntc-green text-ntc-dark shadow-[0_0_20px_rgba(192,255,0,0.3)]'}`}
+                        >
+                            {isActive ? <><Icon name="pause" fill="currentColor"/> Pausar</> : <><Icon name="play" fill="currentColor"/> Comenzar</>}
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        const Phase3 = ({ profile, setProfile, onComplete }) => {
+            const [dial, setDial] = useState(1);
+            const [status, setStatus] = useState('active'); // active, stopped, cooling
+            const [stopTimer, setStopTimer] = useState(15);
+            const [cycles, setCycles] = useState(0);
+
+            useEffect(() => {
+                let interval;
+                if (status === 'stopped' && stopTimer > 0) {
+                    interval = setInterval(() => {
+                        setStopTimer(prev => prev - 1);
+                        if (stopTimer <= 5) triggerFeedback('bubble'); // Advertencia últimos segundos
+                    }, 1000);
+                } else if (status === 'stopped' && stopTimer === 0) {
+                    triggerFeedback('milestone');
+                    setStatus('cooling');
+                }
+                return () => clearInterval(interval);
+            }, [status, stopTimer]);
+
+            const handleDialChange = (e) => {
+                const val = parseInt(e.target.value);
+                setDial(val);
+                if (status === 'active' && val >= 7) {
+                    triggerFeedback('milestone');
+                    setStatus('stopped');
+                    setStopTimer(15);
+                }
+                if (status === 'cooling' && val <= 4) {
+                    setStatus('active');
+                    setCycles(c => c + 1);
+                }
+            };
+
+            const handlePanic = () => {
+                if(confirm("¿Apretar te sube más la excitación? Cambiaremos tu perfil a Hipertónico permanentemente.")) {
+                    setProfile('hyper');
+                    setStatus('active');
+                    setDial(3);
+                }
+            };
+
+            return (
+                <div className={`flex-1 flex flex-col p-6 slide-up transition-colors duration-500 ${status === 'stopped' ? 'bg-red-900/30' : 'bg-ntc-dark'}`}>
+                    <div className="flex justify-between items-center mb-6">
+                        <button onClick={onComplete} className="text-ntc-lightGray font-bold uppercase text-sm">Salir</button>
+                        <span className="text-sm font-bold tracking-widest uppercase text-ntc-green">Ciclos: {cycles} / 5</span>
+                    </div>
+
+                    <div className="text-center mb-8">
+                        <h2 className="text-3xl font-black uppercase mb-2">Medidor de Excitación</h2>
+                        <p className="text-ntc-lightGray text-sm">Ajusta el nivel según tu sensación física.</p>
+                    </div>
+
+                    <div className="flex-1 flex flex-col items-center justify-center w-full">
+                        {status === 'active' && (
+                            <div className="text-center slide-up mb-12">
+                                <Icon name="activity" size={64} className="text-white mx-auto mb-4 pulse-animation" />
+                                <p className="text-2xl font-bold uppercase">Estimulación Continua</p>
+                                <p className="text-ntc-lightGray">Sube el nivel gradualmente.</p>
+                            </div>
+                        )}
+
+                        {status === 'stopped' && (
+                            <div className="text-center slide-up w-full">
+                                <div className="bg-red-600 text-white p-6 rounded-3xl mb-8 border-4 border-red-500/50 shadow-[0_0_30px_rgba(220,38,38,0.5)]">
+                                    <h1 className="text-6xl font-black uppercase mb-2">¡STOP!</h1>
+                                    <p className="text-xl font-bold uppercase mb-6">Detén toda fricción</p>
+                                    
+                                    <div className="text-7xl font-black tabular-nums mb-4">{stopTimer}</div>
+                                    <p className="text-lg font-bold mb-2">
+                                        {profile === 'hyper' ? "¡Expande fuerte hacia afuera!" : "¡Contrae fuerte hacia adentro!"}
+                                    </p>
+                                </div>
+                                
+                                {profile !== 'hyper' && (
+                                    <button onClick={handlePanic} className="w-full bg-ntc-gray border border-white/20 text-white py-4 rounded-xl text-sm font-bold uppercase">
+                                        ¿Apretar empeora la sensación?
+                                    </button>
+                                )}
+                            </div>
+                        )}
+
+                        {status === 'cooling' && (
+                            <div className="text-center slide-up mb-12">
+                                <Icon name="arrow-down-circle" size={64} className="text-blue-400 mx-auto mb-4" />
+                                <p className="text-2xl font-bold uppercase text-blue-400">Fase de Descenso</p>
+                                <p className="text-ntc-lightGray mb-4">Espera, respira y baja el nivel a 3 o 4 para continuar.</p>
+                            </div>
+                        )}
+
+                        {/* Slider Custom NTC Style */}
+                        <div className="w-full mt-auto mb-8 bg-ntc-gray p-6 rounded-3xl border border-white/10">
+                            <div className="flex justify-between text-xl font-black mb-4">
+                                <span className={dial <= 3 ? "text-white" : "text-ntc-lightGray"}>1</span>
+                                <span className={dial >= 7 ? "text-red-500" : "text-white text-3xl"}>{dial}</span>
+                                <span className={dial >= 9 ? "text-red-500" : "text-ntc-lightGray"}>10</span>
+                            </div>
+                            <input 
+                                type="range" min="1" max="10" value={dial} 
+                                onChange={handleDialChange}
+                                className="w-full h-4 bg-ntc-dark rounded-full appearance-none outline-none accent-ntc-green cursor-pointer"
+                                style={{
+                                    background: `linear-gradient(to right, ${dial >= 7 ? '#ef4444' : '#c0ff00'} ${(dial-1)*11.1}%, #111 ${(dial-1)*11.1}%)`
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
