@@ -213,13 +213,24 @@
             profile: 'hypo', // 'hypo' o 'hyper'
             currentPhase: 0,
             currentWeek: 1,
+            sessionsToday: 0,
+            lastSessionDate: new Date().toDateString(),
         };
 
         // --- COMPONENTE PRINCIPAL ---
         const App = () => {
             const [state, setState] = useState(() => {
                 const saved = localStorage.getItem('ptc_state');
-                return saved ? JSON.parse(saved) : initialState;
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    // Reiniciar el progreso diario si es un nuevo día
+                    if (parsed.lastSessionDate !== new Date().toDateString()) {
+                        parsed.sessionsToday = 0;
+                        parsed.lastSessionDate = new Date().toDateString();
+                    }
+                    return parsed;
+                }
+                return initialState;
             });
             const [currentView, setCurrentView] = useState(state.isOnboarded ? 'dashboard' : 'onboarding');
 
@@ -236,6 +247,14 @@
                     setState(initialState);
                     setCurrentView('onboarding');
                 }
+            };
+
+            const handleSessionComplete = () => {
+                updateState({
+                    sessionsToday: state.sessionsToday + 1,
+                    lastSessionDate: new Date().toDateString()
+                });
+                navigate('dashboard');
             };
 
             const navigate = (view) => {
@@ -255,8 +274,8 @@
                     {currentView === 'dashboard' && <Dashboard state={state} onStart={() => navigate('pre_workout')} onReset={resetProgress} onAdvancePhase={() => updateState({currentPhase: Math.min(4, state.currentPhase + 1)})} />}
                     {currentView === 'pre_workout' && <PreWorkout phase={state.currentPhase} onReady={() => navigate(state.currentPhase === 0 ? 'phase0' : state.currentPhase === 3 ? 'phase3' : 'workout')} onBack={() => navigate('dashboard')} />}
                     {currentView === 'phase0' && <Phase0 onComplete={() => { updateState({ currentPhase: 1, currentWeek: 2 }); navigate('dashboard'); }} />}
-                    {currentView === 'workout' && <Workout phase={state.currentPhase} profile={state.profile} onComplete={() => navigate('dashboard')} onQuit={() => navigate('dashboard')} />}
-                    {currentView === 'phase3' && <Phase3 profile={state.profile} setProfile={(p) => updateState({profile: p})} onComplete={() => navigate('dashboard')} />}
+                    {currentView === 'workout' && <Workout phase={state.currentPhase} profile={state.profile} onComplete={handleSessionComplete} onQuit={() => navigate('dashboard')} />}
+                    {currentView === 'phase3' && <Phase3 profile={state.profile} setProfile={(p) => updateState({profile: p})} onComplete={handleSessionComplete} />}
                 </div>
             );
         };
@@ -293,7 +312,7 @@
                         <button onClick={onReset} className="text-ntc-lightGray p-2"><Icon name="settings" size={20}/></button>
                     </div>
 
-                    <div className="mb-10">
+                    <div className="mb-8">
                         <p className="text-ntc-green font-bold uppercase tracking-widest mb-2">{phase.weeks}</p>
                         <h1 className="text-4xl font-extrabold uppercase leading-none mb-4">{phase.title}</h1>
                         <p className="text-ntc-lightGray text-lg leading-snug">{phase.desc}</p>
@@ -304,6 +323,30 @@
                             </div>
                         )}
                     </div>
+
+                    {/* Progress Tracker de NTC */}
+                    {state.currentPhase > 0 && (
+                        <div className="mb-8 bg-ntc-gray/50 p-5 rounded-2xl border border-white/5">
+                            <div className="flex justify-between items-end mb-3">
+                                <p className="text-sm text-ntc-lightGray uppercase tracking-widest font-bold">Objetivo Diario</p>
+                                <p className="text-ntc-green font-black text-xl">{state.sessionsToday} <span className="text-ntc-lightGray text-sm">/ 3</span></p>
+                            </div>
+                            <div className="flex gap-2 h-3 mb-2">
+                                {[1, 2, 3].map(i => (
+                                    <div key={i} className={`flex-1 rounded-full transition-colors duration-500 ${i <= state.sessionsToday ? 'bg-ntc-green shadow-[0_0_10px_rgba(192,255,0,0.5)]' : 'bg-ntc-gray'}`}></div>
+                                ))}
+                            </div>
+                            {state.sessionsToday >= 3 ? (
+                                <p className="text-ntc-green text-xs mt-3 text-center uppercase tracking-wider font-bold flex items-center justify-center gap-1">
+                                    <Icon name="check-circle" size={14} /> ¡Objetivo completado!
+                                </p>
+                            ) : (
+                                <p className="text-ntc-lightGray text-xs mt-3 text-center uppercase tracking-wider font-bold">
+                                    Faltan {Math.max(0, 3 - state.sessionsToday)} sesiones hoy
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <button onClick={onStart} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform shadow-[0_0_20px_rgba(192,255,0,0.3)] mb-8 flex items-center justify-center gap-2">
                         <Icon name="play" fill="currentColor" size={24} />
