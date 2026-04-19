@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#111111">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Pelvic Training Club</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -47,6 +50,10 @@
             from { transform: translateY(20px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }
+        /* Custom scrollbar para la info de ejercicios */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #111111; }
+        ::-webkit-scrollbar-thumb { background: #333333; border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -62,11 +69,10 @@
             if (audioCtx.state === 'suspended') audioCtx.resume();
             
             const masterGain = audioCtx.createGain();
-            masterGain.gain.value = 1.0; // Volumen al máximo
+            masterGain.gain.value = 1.0; 
             masterGain.connect(audioCtx.destination);
             
             if (type === 'bubble') {
-                // Sonido tipo gota/notificación (más fuerte y notorio con dos osciladores)
                 const osc = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 osc.connect(gainNode);
@@ -83,31 +89,14 @@
                 osc.start(audioCtx.currentTime);
                 osc.stop(audioCtx.currentTime + 0.25);
 
-                const osc2 = audioCtx.createOscillator();
-                const gain2 = audioCtx.createGain();
-                osc2.connect(gain2);
-                gain2.connect(masterGain);
-                
-                osc2.type = 'triangle';
-                osc2.frequency.setValueAtTime(800, audioCtx.currentTime);
-                osc2.frequency.exponentialRampToValueAtTime(200, audioCtx.currentTime + 0.15);
-                
-                gain2.gain.setValueAtTime(0, audioCtx.currentTime);
-                gain2.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
-                gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
-                
-                osc2.start(audioCtx.currentTime);
-                osc2.stop(audioCtx.currentTime + 0.2);
-
             } else if (type === 'milestone') {
-                // Sonido tipo campana brillante (hit de tiempo intermedio o final)
                 const osc = audioCtx.createOscillator();
                 const gainNode = audioCtx.createGain();
                 osc.connect(gainNode);
                 gainNode.connect(masterGain);
                 
                 osc.type = 'triangle';
-                osc.frequency.setValueAtTime(880, audioCtx.currentTime); // Nota más aguda y notoria
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
                 
                 gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
                 gainNode.gain.linearRampToValueAtTime(1, audioCtx.currentTime + 0.05);
@@ -115,26 +104,10 @@
                 
                 osc.start(audioCtx.currentTime);
                 osc.stop(audioCtx.currentTime + 0.6);
-
-                // Añadir un armónico para simular resonancia de campana
-                const oscHarm = audioCtx.createOscillator();
-                const gainHarm = audioCtx.createGain();
-                oscHarm.connect(gainHarm);
-                gainHarm.connect(masterGain);
-                
-                oscHarm.type = 'sine';
-                oscHarm.frequency.setValueAtTime(1760, audioCtx.currentTime); 
-                
-                gainHarm.gain.setValueAtTime(0, audioCtx.currentTime);
-                gainHarm.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
-                gainHarm.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4);
-                
-                oscHarm.start(audioCtx.currentTime);
-                oscHarm.stop(audioCtx.currentTime + 0.5);
             }
         };
 
-        const vibrateDevice = (pattern = [200, 100, 200]) => {
+        const vibrateDevice = (pattern) => {
             if ('vibrate' in navigator) {
                 navigator.vibrate(pattern);
             }
@@ -142,10 +115,12 @@
 
         const triggerFeedback = (type = 'bubble') => {
             playSound(type);
-            // Vibraciones mucho más largas y fuertes:
-            // milestones: doble pulso largo (500ms on, 200ms off, 500ms on)
-            // regular: un solo pulso fuerte (400ms on)
-            vibrateDevice(type === 'milestone' ? [500, 200, 500] : [400]);
+            // Vibraciones estilo notificación SMS: fuerte y repetitiva
+            if (type === 'milestone') {
+                vibrateDevice([500, 200, 500, 200, 500]); // Alerta muy fuerte de cambio de sección
+            } else {
+                vibrateDevice([300, 100, 300, 100, 300]); // Simula notificación SMS (bzz-bzz-bzz)
+            }
         };
 
         // --- ICONOS COMPONENTES ---
@@ -168,50 +143,87 @@
         // --- DATOS DEL PROTOCOLO ---
         const getPhaseData = (phaseNum) => {
             const phases = [
-                { id: 0, title: 'Fase 0: Calibración', weeks: 'Semana 1', desc: 'Aislamiento sensorial y conexión mente-músculo.' },
-                { id: 1, title: 'Fase 1: Base', weeks: 'Semanas 2-4', desc: 'Acondicionamiento de fibras lentas y rápidas.' },
+                { id: 1, title: 'Fase 1: Base', weeks: 'Semanas 1-4', desc: 'Acondicionamiento de fibras lentas y rápidas.' },
                 { id: 2, title: 'Fase 2: Hipertrofia', weeks: 'Semanas 5-8', desc: 'Fuerza funcional y resistencia contra gravedad.' },
                 { id: 3, title: 'Fase 3: Integración', weeks: 'Semanas 9-12', desc: 'Terapia conductual y control de excitación.' },
                 { id: 4, title: 'Fase 4: Mantenimiento', weeks: 'Semana 13+', desc: 'Prevención de regresión. Hábitos de por vida.' },
             ];
-            return phases[phaseNum];
+            return phases.find(p => p.id === phaseNum) || phases[0];
+        };
+
+        // Info detallada por ejercicio
+        const getExerciseInfo = (baseType, profile) => {
+            const isHyper = profile === 'hyper';
+            switch(baseType) {
+                case 'lento': return {
+                    form: isHyper ? 'Expande el músculo hacia afuera suavemente, como si inflaras la zona baja del vientre o intentaras orinar más rápido.' : 'Contrae y eleva el músculo pélvico hacia adentro con fuerza sostenida (como al detener la orina).',
+                    mistake: 'Apretar los glúteos, meter el abdomen superior hacia adentro o aguantar la respiración.',
+                    tip: 'Concéntrate en la calidad del aislamiento muscular. La contracción/expansión es invisible por fuera.'
+                };
+                case 'rapido': return {
+                    form: isHyper ? 'Pequeños y rápidos empujes hacia afuera (Kegel Inverso en ráfaga).' : 'Contracción rápida y explosiva hacia adentro, como un parpadeo del músculo.',
+                    mistake: 'Mantener el músculo tenso sin relajar completamente entre cada "parpadeo".',
+                    tip: 'Debe ser explosivo. Es VITAL relajar el músculo a su estado natural al instante.'
+                };
+                case 'maraton': return {
+                    form: isHyper ? 'Expansión constante al 50% de tu capacidad máxima, mantenida en el tiempo.' : 'Contracción sostenida al 50% de tu fuerza máxima.',
+                    mistake: 'Aplicar el 100% de fuerza y fatigarse en los primeros 10 segundos, o aguantar la respiración.',
+                    tip: 'Respira fluidamente y habla en voz alta si es necesario. Si el músculo tiembla o se suelta, recupéralo suavemente.'
+                };
+                default: return { form: '', mistake: '', tip: '' };
+            }
         };
 
         // Generador de Rutinas
         const generateRoutine = (phase, profile) => {
-            const actionWord = profile === 'hyper' ? 'Expande (Kegel Inverso)' : 'Contrae (Kegel)';
+            const actionWord = profile === 'hyper' ? 'Expande (Inverso)' : 'Contrae (Kegel)';
             const routine = [];
             
+            const infoLento = getExerciseInfo('lento', profile);
+            const infoRapido = getExerciseInfo('rapido', profile);
+            const infoMaraton = getExerciseInfo('maraton', profile);
+
             if (phase === 1) {
                 // Fase 1: 10 lentos, 1m descanso, 10 rapidos
                 for(let i=0; i<10; i++) {
-                    routine.push({ type: 'work', time: 5, title: `${actionWord} Fuerte`, desc: `Lento rep ${i+1}/10` });
-                    routine.push({ type: 'rest', time: 5, title: 'Descanso Total', desc: 'Relaja completamente', nextInfo: 'Prepárate para contraer' });
+                    routine.push({ type: 'work', time: 5, title: `${actionWord} Fuerte`, desc: `Lento rep ${i+1}/10`, info: infoLento });
+                    routine.push({ type: 'rest', time: 5, title: 'Descanso Total', desc: 'Relaja el músculo por completo' });
                 }
-                routine.push({ type: 'rest', time: 60, title: 'Descanso Activo', desc: 'Respiración abdominal profunda', nextInfo: 'Siguen contracciones rápidas' });
+                routine.push({ type: 'rest', time: 60, title: 'Descanso Activo', desc: 'Respiración abdominal profunda para recargar' });
                 for(let i=0; i<10; i++) {
-                    routine.push({ type: 'work', time: 1, title: `${actionWord} Rápido`, desc: `Rápido rep ${i+1}/10` });
+                    routine.push({ type: 'work', time: 1, title: `${actionWord} Rápido`, desc: `Rápido rep ${i+1}/10`, info: infoRapido });
+                    // Se añade 1s de descanso en ráfagas para permitir feedback de UI y vibración correcta
+                    if(i < 9) routine.push({ type: 'rest', time: 1, title: 'Suelta', desc: 'Relaja instantáneamente', isMicroRest: true });
                 }
             } else if (phase === 2 || phase === 4) {
                 // Fase 2/4: 10 lentos prolongados, Maratón 30s, 10 rapidos
                 for(let i=0; i<10; i++) {
-                    routine.push({ type: 'work', time: 10, title: `${actionWord} Prolongado`, desc: `Rep ${i+1}/10` });
-                    routine.push({ type: 'rest', time: 10, title: 'Descanso Total', desc: 'Recupera energía', nextInfo: 'Prepárate para contraer' });
+                    routine.push({ type: 'work', time: 10, title: `${actionWord} Prolongado`, desc: `Rep ${i+1}/10`, info: infoLento });
+                    routine.push({ type: 'rest', time: 10, title: 'Descanso Total', desc: 'Recupera energía celular' });
                 }
-                routine.push({ type: 'work', time: 30, title: 'El Maratón', desc: `${actionWord} al 50%. ¡Sigue respirando!`, milestones: [20, 30] });
-                routine.push({ type: 'rest', time: 30, title: 'Descanso Post-Maratón', desc: 'Relaja', nextInfo: 'Siguen contracciones rápidas' });
+                routine.push({ type: 'work', time: 30, title: 'El Maratón', desc: `${actionWord} al 50%.`, info: infoMaraton, milestones: [20, 30] });
+                routine.push({ type: 'rest', time: 30, title: 'Descanso Post-Maratón', desc: 'Relaja profundamente' });
                 for(let i=0; i<10; i++) {
-                    routine.push({ type: 'work', time: 1, title: `${actionWord} Rápido`, desc: `Ráfaga rep ${i+1}/10` });
+                    routine.push({ type: 'work', time: 1, title: `${actionWord} Rápido`, desc: `Ráfaga rep ${i+1}/10`, info: infoRapido });
+                    if(i < 9) routine.push({ type: 'rest', time: 1, title: 'Suelta', desc: 'Relaja', isMicroRest: true });
                 }
             }
+
+            // Enlazar la info del siguiente ejercicio en los descansos
+            for (let i = 0; i < routine.length - 1; i++) {
+                if (routine[i].type === 'rest' && !routine[i].isMicroRest) {
+                    routine[i].nextExercise = routine[i + 1];
+                }
+            }
+
             return routine;
         };
 
         // --- ESTADO INICIAL ---
         const initialState = {
             isOnboarded: false,
-            profile: 'hypo', // 'hypo' o 'hyper'
-            currentPhase: 0,
+            profile: 'hypo', 
+            currentPhase: 1, // Ya no existe fase 0
             currentWeek: 1,
             sessionsToday: 0,
             lastSessionDate: new Date().toDateString(),
@@ -223,11 +235,12 @@
                 const saved = localStorage.getItem('ptc_state');
                 if (saved) {
                     const parsed = JSON.parse(saved);
-                    // Reiniciar el progreso diario si es un nuevo día
                     if (parsed.lastSessionDate !== new Date().toDateString()) {
                         parsed.sessionsToday = 0;
                         parsed.lastSessionDate = new Date().toDateString();
                     }
+                    // Parche de migración: si un usuario antiguo estaba en fase 0, moverlo a fase 1
+                    if (parsed.currentPhase === 0) parsed.currentPhase = 1;
                     return parsed;
                 }
                 return initialState;
@@ -258,7 +271,6 @@
             };
 
             const navigate = (view) => {
-                // Reproducir un sonido en blanco para desbloquear el AudioContext en Safari/iOS al interactuar
                 if (audioCtx.state === 'suspended') {
                     audioCtx.resume();
                     const osc = audioCtx.createOscillator();
@@ -269,13 +281,14 @@
             };
 
             return (
-                <div className="min-h-screen bg-ntc-dark text-white font-sans max-w-md mx-auto relative overflow-hidden flex flex-col">
-                    {currentView === 'onboarding' && <Onboarding onComplete={(profile) => { updateState({ isOnboarded: true, profile }); navigate('dashboard'); }} />}
-                    {currentView === 'dashboard' && <Dashboard state={state} onStart={() => navigate('pre_workout')} onReset={resetProgress} onAdvancePhase={() => updateState({currentPhase: Math.min(4, state.currentPhase + 1)})} />}
-                    {currentView === 'pre_workout' && <PreWorkout phase={state.currentPhase} onReady={() => navigate(state.currentPhase === 0 ? 'phase0' : state.currentPhase === 3 ? 'phase3' : 'workout')} onBack={() => navigate('dashboard')} />}
-                    {currentView === 'phase0' && <Phase0 onComplete={() => { updateState({ currentPhase: 1, currentWeek: 2 }); navigate('dashboard'); }} />}
+                <div className="min-h-screen bg-ntc-dark text-white font-sans max-w-md mx-auto relative flex flex-col h-[100dvh]">
+                    {currentView === 'onboarding' && <Onboarding onComplete={(profile) => { updateState({ isOnboarded: true, profile, currentPhase: 1, currentWeek: 1 }); navigate('dashboard'); }} />}
+                    {currentView === 'dashboard' && <Dashboard state={state} onStart={() => navigate('pre_workout')} onNavigate={navigate} onReset={resetProgress} onAdvancePhase={() => updateState({currentPhase: Math.min(4, state.currentPhase + 1)})} />}
+                    {currentView === 'pre_workout' && <PreWorkout phase={state.currentPhase} onReady={() => navigate(state.currentPhase === 3 ? 'phase3' : 'workout')} onBack={() => navigate('dashboard')} />}
                     {currentView === 'workout' && <Workout phase={state.currentPhase} profile={state.profile} onComplete={handleSessionComplete} onQuit={() => navigate('dashboard')} />}
                     {currentView === 'phase3' && <Phase3 profile={state.profile} setProfile={(p) => updateState({profile: p})} onComplete={handleSessionComplete} />}
+                    {currentView === 'guide' && <GuideView profile={state.profile} onBack={() => navigate('dashboard')} />}
+                    {currentView === 'install' && <InstallGuide onBack={() => navigate('dashboard')} />}
                 </div>
             );
         };
@@ -284,7 +297,7 @@
 
         const Onboarding = ({ onComplete }) => {
             return (
-                <div className="flex-1 flex flex-col justify-center p-6 slide-up">
+                <div className="flex-1 flex flex-col justify-center p-6 slide-up overflow-y-auto">
                     <Icon name="activity" size={48} className="text-ntc-green mb-6 mx-auto" />
                     <h1 className="text-3xl font-bold text-center mb-8 uppercase tracking-wide">Configuración<br/>Inicial</h1>
                     <p className="text-ntc-lightGray text-center mb-10 text-lg">Para personalizar tu terapia, necesitamos saber un detalle importante.</p>
@@ -292,7 +305,7 @@
                     <div className="bg-ntc-gray p-6 rounded-xl mb-8 border border-ntc-gray/50 shadow-lg">
                         <p className="font-semibold text-lg mb-6 leading-tight">¿Sientes dolor pélvico crónico, dificultad/vacilación al orinar, o dolor al eyacular?</p>
                         <div className="space-y-4">
-                            <button onClick={() => onComplete('hyper')} className="w-full bg-ntc-green text-ntc-dark font-bold py-4 rounded-full text-lg active:scale-95 transition-transform uppercase tracking-wider">Sí, presento síntomas</button>
+                            <button onClick={() => onComplete('hyper')} className="w-full bg-ntc-green text-ntc-dark font-bold py-4 rounded-full text-lg active:scale-95 transition-transform uppercase tracking-wider shadow-[0_0_15px_rgba(192,255,0,0.2)]">Sí, presento síntomas</button>
                             <button onClick={() => onComplete('hypo')} className="w-full bg-transparent border-2 border-white text-white font-bold py-4 rounded-full text-lg active:scale-95 transition-transform uppercase tracking-wider">No, no presento síntomas</button>
                         </div>
                     </div>
@@ -300,140 +313,208 @@
             );
         };
 
-        const Dashboard = ({ state, onStart, onReset, onAdvancePhase }) => {
+        const Dashboard = ({ state, onStart, onNavigate, onReset, onAdvancePhase }) => {
             const phase = getPhaseData(state.currentPhase);
             return (
                 <div className="flex-1 flex flex-col p-6 slide-up overflow-y-auto">
-                    <div className="flex justify-between items-center mb-8 pt-4">
+                    <div className="flex justify-between items-center mb-6 pt-2">
                         <div className="flex items-center gap-2">
                             <Icon name="zap" className="text-ntc-green" />
-                            <span className="font-bold tracking-widest uppercase">Pelvic TC</span>
+                            <span className="font-bold tracking-widest uppercase text-lg">Pelvic TC</span>
                         </div>
-                        <button onClick={onReset} className="text-ntc-lightGray p-2"><Icon name="settings" size={20}/></button>
+                        <button onClick={onReset} className="text-ntc-lightGray p-2 active:text-white transition-colors"><Icon name="settings" size={20}/></button>
                     </div>
 
-                    <div className="mb-8">
-                        <p className="text-ntc-green font-bold uppercase tracking-widest mb-2">{phase.weeks}</p>
-                        <h1 className="text-4xl font-extrabold uppercase leading-none mb-4">{phase.title}</h1>
-                        <p className="text-ntc-lightGray text-lg leading-snug">{phase.desc}</p>
+                    <div className="mb-6">
+                        <p className="text-ntc-green font-bold uppercase tracking-widest mb-1 text-sm">{phase.weeks}</p>
+                        <h1 className="text-4xl font-extrabold uppercase leading-none mb-3">{phase.title}</h1>
+                        <p className="text-ntc-lightGray text-base leading-snug">{phase.desc}</p>
                         {state.profile === 'hyper' && (
                             <div className="mt-4 bg-ntc-green/10 text-ntc-green border border-ntc-green/20 p-3 rounded-lg flex items-start gap-3">
                                 <Icon name="info" size={20} className="shrink-0 mt-0.5" />
-                                <p className="text-sm font-medium">Perfil Hipertónico activado: Tus rutinas usarán técnicas de relajación y expansión (Kegel Inverso).</p>
+                                <p className="text-sm font-medium">Perfil Hipertónico activado: Tus rutinas usan Kegels Inversos (Relajación Activa).</p>
                             </div>
                         )}
                     </div>
 
-                    {/* Progress Tracker de NTC */}
-                    {state.currentPhase > 0 && (
-                        <div className="mb-8 bg-ntc-gray/50 p-5 rounded-2xl border border-white/5">
-                            <div className="flex justify-between items-end mb-3">
-                                <p className="text-sm text-ntc-lightGray uppercase tracking-widest font-bold">Objetivo Diario</p>
-                                <p className="text-ntc-green font-black text-xl">{state.sessionsToday} <span className="text-ntc-lightGray text-sm">/ 3</span></p>
-                            </div>
-                            <div className="flex gap-2 h-3 mb-2">
-                                {[1, 2, 3].map(i => (
-                                    <div key={i} className={`flex-1 rounded-full transition-colors duration-500 ${i <= state.sessionsToday ? 'bg-ntc-green shadow-[0_0_10px_rgba(192,255,0,0.5)]' : 'bg-ntc-gray'}`}></div>
-                                ))}
-                            </div>
-                            {state.sessionsToday >= 3 ? (
-                                <p className="text-ntc-green text-xs mt-3 text-center uppercase tracking-wider font-bold flex items-center justify-center gap-1">
-                                    <Icon name="check-circle" size={14} /> ¡Objetivo completado!
-                                </p>
-                            ) : (
-                                <p className="text-ntc-lightGray text-xs mt-3 text-center uppercase tracking-wider font-bold">
-                                    Faltan {Math.max(0, 3 - state.sessionsToday)} sesiones hoy
-                                </p>
-                            )}
+                    {/* Progress Tracker */}
+                    <div className="mb-6 bg-ntc-gray/50 p-5 rounded-2xl border border-white/5">
+                        <div className="flex justify-between items-end mb-3">
+                            <p className="text-sm text-ntc-lightGray uppercase tracking-widest font-bold">Objetivo Diario</p>
+                            <p className="text-ntc-green font-black text-xl">{state.sessionsToday} <span className="text-ntc-lightGray text-sm">/ 3</span></p>
                         </div>
-                    )}
+                        <div className="flex gap-2 h-3 mb-2">
+                            {[1, 2, 3].map(i => (
+                                <div key={i} className={`flex-1 rounded-full transition-colors duration-500 ${i <= state.sessionsToday ? 'bg-ntc-green shadow-[0_0_10px_rgba(192,255,0,0.5)]' : 'bg-ntc-gray'}`}></div>
+                            ))}
+                        </div>
+                        {state.sessionsToday >= 3 ? (
+                            <p className="text-ntc-green text-xs mt-3 text-center uppercase tracking-wider font-bold flex items-center justify-center gap-1">
+                                <Icon name="check-circle" size={14} /> ¡Objetivo completado!
+                            </p>
+                        ) : (
+                            <p className="text-ntc-lightGray text-xs mt-3 text-center uppercase tracking-wider font-bold">
+                                Faltan {Math.max(0, 3 - state.sessionsToday)} sesiones hoy
+                            </p>
+                        )}
+                    </div>
 
-                    <button onClick={onStart} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform shadow-[0_0_20px_rgba(192,255,0,0.3)] mb-8 flex items-center justify-center gap-2">
+                    <button onClick={onStart} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform shadow-[0_0_20px_rgba(192,255,0,0.3)] mb-4 flex items-center justify-center gap-2">
                         <Icon name="play" fill="currentColor" size={24} />
                         Iniciar Sesión
                     </button>
 
-                    <div className="mt-auto border-t border-ntc-gray pt-6 pb-4">
-                        <p className="text-sm text-ntc-lightGray mb-4 uppercase tracking-widest font-bold">Opciones de Desarrollador</p>
-                        <button onClick={onAdvancePhase} className="w-full bg-ntc-gray text-white py-3 rounded-xl text-sm font-semibold active:bg-gray-700">Avanzar a la siguiente Fase (Test)</button>
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                        <button onClick={() => onNavigate('guide')} className="bg-ntc-gray border border-white/10 py-4 rounded-2xl flex flex-col items-center justify-center gap-2 active:bg-gray-800 transition-colors">
+                            <Icon name="book-open" size={24} className="text-white" />
+                            <span className="text-xs font-bold uppercase tracking-wider">Guía y Tips</span>
+                        </button>
+                        <button onClick={() => onNavigate('install')} className="bg-ntc-gray border border-white/10 py-4 rounded-2xl flex flex-col items-center justify-center gap-2 active:bg-gray-800 transition-colors">
+                            <Icon name="download" size={24} className="text-ntc-green" />
+                            <span className="text-xs font-bold uppercase tracking-wider text-ntc-green">Instalar App</span>
+                        </button>
+                    </div>
+
+                    <div className="mt-auto border-t border-ntc-gray pt-4 pb-4">
+                        <button onClick={onAdvancePhase} className="w-full text-ntc-lightGray py-2 rounded-xl text-xs font-semibold active:text-white uppercase tracking-widest">Dev: Avanzar de Fase</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const GuideView = ({ profile, onBack }) => {
+            const isHyper = profile === 'hyper';
+            return (
+                <div className="flex-1 flex flex-col p-6 slide-up bg-ntc-dark overflow-y-auto">
+                    <button onClick={onBack} className="self-start text-ntc-green mb-6 flex items-center gap-1 font-bold uppercase text-sm sticky top-0 bg-ntc-dark py-2 z-10 w-full"><Icon name="arrow-left" size={16}/> Volver al Inicio</button>
+                    
+                    <h2 className="text-3xl font-black uppercase mb-8 leading-none">Librería de<br/>Ejercicios</h2>
+                    
+                    <div className="space-y-6">
+                        <div className="bg-ntc-gray p-5 rounded-2xl border border-white/5">
+                            <h3 className="font-black text-xl mb-2 text-ntc-green uppercase tracking-wide">El Consejo Diario: "The Knack"</h3>
+                            <p className="text-sm text-white/90 leading-relaxed mb-3">
+                                Este hábito cambiará tu vida. El objetivo de la terapia es crear reflejos automáticos. 
+                            </p>
+                            <div className="bg-ntc-dark p-3 rounded-xl border-l-4 border-ntc-green">
+                                <p className="text-sm font-bold text-ntc-lightGray uppercase mb-1">La Regla:</p>
+                                <p className="text-sm font-medium">Siempre que vayas a toser, estornudar, reír fuerte o levantar algo pesado, <strong className="text-ntc-green">{isHyper ? 'empuja levemente hacia afuera' : 'contrae fuertemente hacia adentro'}</strong> un segundo antes del impacto para proteger tu suelo pélvico.</p>
+                            </div>
+                        </div>
+
+                        <h3 className="font-black text-2xl uppercase tracking-wide mt-8 mb-4 border-b border-ntc-gray pb-2">Diccionario</h3>
+
+                        <div className="bg-ntc-gray p-5 rounded-2xl border-l-4 border-blue-500">
+                            <h4 className="font-bold text-lg mb-1 uppercase">Lentos (Endurancia)</h4>
+                            <p className="text-sm text-ntc-lightGray mb-2">Entrenan las Fibras Tipo I (Sostén continuo).</p>
+                            <p className="text-sm font-medium">{getExerciseInfo('lento', profile).form}</p>
+                        </div>
+
+                        <div className="bg-ntc-gray p-5 rounded-2xl border-l-4 border-red-500">
+                            <h4 className="font-bold text-lg mb-1 uppercase">Rápidos (Explosivos)</h4>
+                            <p className="text-sm text-ntc-lightGray mb-2">Entrenan las Fibras Tipo II (Respuesta rápida).</p>
+                            <p className="text-sm font-medium">{getExerciseInfo('rapido', profile).form}</p>
+                        </div>
+
+                        <div className="bg-ntc-gray p-5 rounded-2xl border-l-4 border-purple-500">
+                            <h4 className="font-bold text-lg mb-1 uppercase">El Maratón</h4>
+                            <p className="text-sm text-ntc-lightGray mb-2">Resistencia submáxima (30 segundos).</p>
+                            <p className="text-sm font-medium">{getExerciseInfo('maraton', profile).form}</p>
+                        </div>
+
+                        <h3 className="font-black text-2xl uppercase tracking-wide mt-8 mb-4 border-b border-ntc-gray pb-2">Reglas de Oro</h3>
+                        <ul className="list-disc list-inside space-y-3 text-sm text-white/90">
+                            <li><strong className="text-ntc-green">Respiración:</strong> NUNCA aguantes la respiración (Maniobra Valsalva). Si te cuesta, cuenta en voz alta.</li>
+                            <li><strong className="text-ntc-green">Aislamiento:</strong> Tus glúteos, abdomen y muslos no deben moverse ni apretarse. El movimiento es interno e invisible.</li>
+                            <li><strong className="text-ntc-green">Descanso Vital:</strong> El tiempo de descanso es obligatorio. El músculo necesita recuperar ATP (energía celular) para crecer.</li>
+                        </ul>
+                        <div className="pb-8"></div>
+                    </div>
+                </div>
+            );
+        };
+
+        const InstallGuide = ({ onBack }) => {
+            return (
+                <div className="flex-1 flex flex-col p-6 slide-up bg-ntc-dark overflow-y-auto">
+                    <button onClick={onBack} className="self-start text-ntc-green mb-6 flex items-center gap-1 font-bold uppercase text-sm sticky top-0 bg-ntc-dark py-2 z-10 w-full"><Icon name="arrow-left" size={16}/> Volver al Inicio</button>
+                    
+                    <h2 className="text-3xl font-black uppercase mb-4 leading-none">Instalar<br/>La App</h2>
+                    <p className="text-ntc-lightGray text-sm mb-8">Esta es una aplicación web progresiva. Instálala para acceso rápido, modo pantalla completa y uso sin conexión.</p>
+
+                    <div className="space-y-6">
+                        <div className="bg-ntc-gray p-6 rounded-3xl border border-white/10">
+                            <div className="flex items-center gap-3 mb-4">
+                                <Icon name="smartphone" size={28} className="text-green-400" />
+                                <h3 className="font-black text-xl uppercase tracking-wide">Android (Chrome)</h3>
+                            </div>
+                            <ol className="list-decimal list-inside space-y-4 text-sm font-medium text-white/90">
+                                <li>Toca el ícono de los tres puntos <strong className="bg-ntc-dark px-2 py-1 rounded">⋮</strong> en la esquina superior derecha del navegador.</li>
+                                <li>Selecciona la opción <strong className="text-green-400">"Agregar a la pantalla principal"</strong> o "Instalar aplicación".</li>
+                                <li>Confirma tocando "Agregar". ¡Listo! Busca el ícono verde en tu celular.</li>
+                            </ol>
+                        </div>
+
+                        <div className="bg-ntc-gray p-6 rounded-3xl border border-white/10">
+                            <div className="flex items-center gap-3 mb-4">
+                                <Icon name="apple" size={28} className="text-blue-400" />
+                                <h3 className="font-black text-xl uppercase tracking-wide">iPhone (Safari)</h3>
+                            </div>
+                            <ol className="list-decimal list-inside space-y-4 text-sm font-medium text-white/90">
+                                <li>Toca el ícono de compartir <span className="inline-block bg-ntc-dark p-1 rounded align-middle border border-white/20"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg></span> en la barra inferior del navegador.</li>
+                                <li>Desliza el menú hacia arriba y selecciona <strong className="text-blue-400">"Agregar a inicio"</strong> (con un ícono de un '+').</li>
+                                <li>Toca "Agregar" en la esquina superior derecha.</li>
+                            </ol>
+                        </div>
                     </div>
                 </div>
             );
         };
 
         const PreWorkout = ({ phase, onReady, onBack }) => {
-            // Determinar postura si es fase 2
             const hour = new Date().getHours();
-            let posture = "Decúbito supino (Boca arriba, rodillas dobladas)";
+            let posture = "Decúbito supino (Acostado boca arriba, rodillas dobladas)";
+            
+            // Lógica de posturas para Fase 2 en adelante
             if (phase === 2 || phase === 4) {
-                if (hour < 12) posture = "Sentado (Espalda recta, inclinado adelante)";
-                else if (hour < 18) posture = "De pie (Piernas separadas, relajado)";
+                if (hour < 12) posture = "Sentado (Espalda recta, ligeramente inclinado hacia adelante)";
+                else if (hour < 18) posture = "De pie (Piernas separadas al ancho de hombros, postura relajada)";
             }
 
             return (
-                <div className="flex-1 flex flex-col p-6 slide-up bg-ntc-dark">
-                    <button onClick={onBack} className="self-start text-ntc-green mb-6 flex items-center gap-1 font-bold uppercase text-sm"><Icon name="arrow-left" size={16}/> Volver</button>
+                <div className="flex-1 flex flex-col p-6 slide-up bg-ntc-dark overflow-y-auto">
+                    <button onClick={onBack} className="self-start text-ntc-green mb-4 flex items-center gap-1 font-bold uppercase text-sm"><Icon name="arrow-left" size={16}/> Volver</button>
                     
-                    <h2 className="text-3xl font-black uppercase mb-8">Reglas<br/>de la sesión</h2>
+                    <h2 className="text-3xl font-black uppercase mb-6 leading-none">Reglas de<br/>la sesión</h2>
                     
-                    <div className="space-y-6 flex-1">
-                        <div className="bg-ntc-gray p-5 rounded-2xl flex gap-4 items-start">
+                    <div className="space-y-4 flex-1">
+                        <div className="bg-ntc-gray p-4 rounded-2xl flex gap-4 items-start">
                             <div className="bg-ntc-dark p-3 rounded-full text-ntc-green shrink-0"><Icon name="wind"/></div>
                             <div>
                                 <h3 className="font-bold text-lg mb-1 uppercase">Respiración</h3>
-                                <p className="text-ntc-lightGray text-sm">No contengas la respiración (Maniobra Valsalva). Respira fluido o cuenta en voz alta.</p>
+                                <p className="text-ntc-lightGray text-sm">No contengas la respiración. Respira fluido o cuenta en voz alta.</p>
                             </div>
                         </div>
-                        <div className="bg-ntc-gray p-5 rounded-2xl flex gap-4 items-start">
+                        <div className="bg-ntc-gray p-4 rounded-2xl flex gap-4 items-start">
                             <div className="bg-ntc-dark p-3 rounded-full text-ntc-green shrink-0"><Icon name="eye-off"/></div>
                             <div>
                                 <h3 className="font-bold text-lg mb-1 uppercase">Aislamiento</h3>
-                                <p className="text-ntc-lightGray text-sm">El movimiento es invisible. No aprietes glúteos, muslos ni abdomen.</p>
+                                <p className="text-ntc-lightGray text-sm">El movimiento es invisible. No aprietes glúteos, muslos ni abdomen superior.</p>
                             </div>
                         </div>
-                        {(phase !== 0 && phase !== 3) && (
-                            <div className="bg-ntc-gray p-5 rounded-2xl flex gap-4 items-start border border-ntc-green/30">
+                        {(phase !== 3) && (
+                            <div className="bg-ntc-gray p-4 rounded-2xl flex gap-4 items-start border border-ntc-green/40 shadow-[0_0_15px_rgba(192,255,0,0.1)]">
                                 <div className="bg-ntc-dark p-3 rounded-full text-ntc-green shrink-0"><Icon name="accessibility"/></div>
                                 <div>
                                     <h3 className="font-bold text-lg mb-1 uppercase text-ntc-green">Postura Requerida</h3>
                                     <p className="text-white text-sm font-medium">{posture}</p>
+                                    <p className="text-xs text-ntc-lightGray mt-2 italic">*La postura cambia según la fase y hora del día para generar fuerza contra la gravedad.</p>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    <button onClick={onReady} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform mt-8">Entendido</button>
-                </div>
-            );
-        };
-
-        const Phase0 = ({ onComplete }) => {
-            const [step, setStep] = useState(0);
-            const steps = [
-                { title: "1. Prueba de Micción", desc: "Instrucción de diagnóstico: La próxima vez que orines, intenta detener el flujo a la mitad. Hazlo SOLO UNA VEZ en tu vida para memorizar el músculo. (No lo uses como ejercicio, daña la vejiga)." },
-                { title: "2. Confirmación Visual", desc: "El 'Ascensor': Frente a un espejo, contrae el músculo. El pene debe retraerse ligeramente como una tortuga y los testículos deben elevarse." },
-                { title: "3. Confirmación Táctil", desc: "Coloca los dedos en el periné (entre ano y testículos). Al contraer, debes sentir una banda muscular que se endurece y empuja hacia adentro." }
-            ];
-
-            return (
-                <div className="flex-1 flex flex-col p-6 slide-up">
-                    <h2 className="text-3xl font-black uppercase mb-2 text-ntc-green">Fase 0</h2>
-                    <p className="text-xl font-bold uppercase mb-8">Calibración</p>
-
-                    <div className="flex-1">
-                        <div className="bg-ntc-gray p-6 rounded-2xl">
-                            <h3 className="text-2xl font-bold mb-4">{steps[step].title}</h3>
-                            <p className="text-lg text-ntc-lightGray leading-relaxed">{steps[step].desc}</p>
-                        </div>
-                    </div>
-
-                    {step < 2 ? (
-                        <button onClick={() => setStep(s => s+1)} className="w-full bg-white text-ntc-dark font-black py-5 rounded-full text-lg uppercase tracking-widest active:scale-95 transition-transform mb-6">Siguiente Paso</button>
-                    ) : (
-                        <button onClick={onComplete} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-lg uppercase tracking-widest active:scale-95 transition-transform mb-6 flex justify-center gap-2 pulse-animation">
-                            <Icon name="check-circle" size={24}/> Ya logré aislar el músculo
-                        </button>
-                    )}
+                    <button onClick={onReady} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform mt-6 shrink-0">Entendido</button>
                 </div>
             );
         };
@@ -461,7 +542,6 @@
                             const newTime = prev - 1;
                             const currentExercise = routine[currentIndex];
                             
-                            // Lógica de hitos (milestones) para sonido en ejercicios largos (ej. 20s y 30s)
                             if (currentExercise && currentExercise.type === 'work' && currentExercise.milestones) {
                                 const timeElapsed = currentExercise.time - newTime;
                                 if (currentExercise.milestones.includes(timeElapsed)) {
@@ -472,7 +552,6 @@
                         });
                     }, 1000);
                 } else if (isActive && timeLeft === 0) {
-                    // Fin del ejercicio actual
                     triggerFeedback('bubble');
                     
                     if (currentIndex < routine.length - 1) {
@@ -494,38 +573,49 @@
 
             if (isFinished) {
                 return (
-                    <div className="flex-1 flex flex-col justify-center items-center p-6 slide-up text-center">
-                        <Icon name="award" size={80} className="text-ntc-green mb-6" />
-                        <h2 className="text-4xl font-black uppercase mb-4">¡Sesión Completada!</h2>
-                        <p className="text-ntc-lightGray text-lg mb-10">Excelente trabajo aislando y controlando.</p>
-                        <button onClick={onComplete} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform">Finalizar</button>
+                    <div className="flex-1 flex flex-col justify-center items-center p-6 slide-up text-center bg-ntc-dark">
+                        <Icon name="award" size={80} className="text-ntc-green mb-6 pulse-animation" />
+                        <h2 className="text-4xl font-black uppercase mb-4 leading-none">¡Sesión<br/>Completada!</h2>
+                        <p className="text-ntc-lightGray text-lg mb-10 px-4">Excelente trabajo aislando y controlando. Tus músculos pélvicos se están adaptando.</p>
+                        <button onClick={onComplete} className="w-full bg-ntc-green text-ntc-dark font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform shadow-[0_0_20px_rgba(192,255,0,0.3)]">Finalizar</button>
                     </div>
                 );
             }
 
             const currentExercise = routine[currentIndex];
             const isRest = currentExercise.type === 'rest';
+            const isMicroRest = currentExercise.isMicroRest;
             const progressPercent = ((currentExercise.time - timeLeft) / currentExercise.time) * 100;
-            const circleRadius = 120;
+            const circleRadius = 100; // Un poco más pequeño para dejar espacio
             const circleCircumference = 2 * Math.PI * circleRadius;
             const strokeDashoffset = circleCircumference - (progressPercent / 100) * circleCircumference;
 
             return (
-                <div className={`flex-1 flex flex-col p-6 slide-up transition-colors duration-500 ${isRest ? 'bg-[#1a1a1a]' : 'bg-ntc-dark'}`}>
-                    <div className="flex justify-between items-center mb-8">
-                        <button onClick={onQuit} className="text-ntc-lightGray"><Icon name="x" size={28}/></button>
-                        <span className="text-sm font-bold tracking-widest uppercase text-ntc-lightGray">{currentIndex + 1} / {routine.length}</span>
+                <div className={`flex-1 flex flex-col slide-up transition-colors duration-500 ${isRest ? 'bg-[#1a1a1a]' : 'bg-ntc-dark'} overflow-y-auto`}>
+                    <div className="p-6 pb-2 flex justify-between items-center shrink-0">
+                        <button onClick={onQuit} className="text-ntc-lightGray active:text-white"><Icon name="x" size={28}/></button>
+                        <span className="text-sm font-bold tracking-widest uppercase text-ntc-lightGray bg-black/20 px-3 py-1 rounded-full">{currentIndex + 1} / {routine.length}</span>
                         <div className="w-7"></div>
                     </div>
 
-                    <div className="flex-1 flex flex-col items-center justify-center relative">
-                        {/* Circular Timer */}
-                        <div className="relative w-72 h-72 mb-8 flex items-center justify-center">
-                            <svg className="w-full h-full -rotate-90 absolute top-0 left-0" viewBox="0 0 260 260">
-                                <circle cx="130" cy="130" r={circleRadius} stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="none" />
+                    <div className="flex-1 flex flex-col items-center px-6">
+                        {/* Texto Superior: Título Actual */}
+                        <div className="text-center w-full mb-4">
+                            <h2 className={`text-3xl font-black uppercase tracking-tight ${isRest ? 'text-white' : 'text-ntc-green'}`}>
+                                {currentExercise.title}
+                            </h2>
+                            <p className="text-lg text-ntc-lightGray font-medium mt-1">
+                                {currentExercise.desc}
+                            </p>
+                        </div>
+
+                        {/* Cronómetro Circular */}
+                        <div className="relative w-56 h-56 flex items-center justify-center shrink-0">
+                            <svg className="w-full h-full -rotate-90 absolute top-0 left-0" viewBox="0 0 220 220">
+                                <circle cx="110" cy="110" r={circleRadius} stroke="rgba(255,255,255,0.05)" strokeWidth="8" fill="none" />
                                 <circle 
                                     className="circle-progress"
-                                    cx="130" cy="130" r={circleRadius} 
+                                    cx="110" cy="110" r={circleRadius} 
                                     stroke={isRest ? '#888888' : '#c0ff00'} 
                                     strokeWidth="12" fill="none" 
                                     strokeLinecap="round"
@@ -534,34 +624,60 @@
                                 />
                             </svg>
                             <div className="text-center z-10 flex flex-col items-center">
-                                <span className={`text-7xl font-black tabular-nums ${isRest ? 'text-white' : 'text-ntc-green'}`}>
+                                <span className={`text-6xl font-black tabular-nums tracking-tighter ${isRest ? 'text-white' : 'text-ntc-green'}`}>
                                     {timeLeft}
                                 </span>
-                                <span className="text-sm font-bold uppercase tracking-widest mt-2 text-ntc-lightGray">Segundos</span>
+                                <span className="text-xs font-bold uppercase tracking-widest mt-1 text-ntc-lightGray">Segs</span>
                             </div>
                         </div>
 
-                        <div className="text-center px-4 w-full">
-                            <h2 className={`text-3xl font-black uppercase mb-2 ${isRest ? 'text-white' : 'text-ntc-green'}`}>
-                                {currentExercise.title}
-                            </h2>
-                            <p className="text-xl text-ntc-lightGray font-medium h-12 flex items-center justify-center">
-                                {currentExercise.desc}
-                            </p>
-                        </div>
+                        {/* PANEL DE INFORMACIÓN (Oculto en micro descansos rápidos) */}
+                        {!isMicroRest && (
+                            <div className="w-full mt-6 pb-6">
+                                {/* INFO DE DESCANSO: Qué sigue */}
+                                {isRest && currentExercise.nextExercise && (
+                                    <div className="bg-ntc-gray w-full p-5 rounded-2xl border border-ntc-green/40 slide-up text-left shadow-lg">
+                                        <p className="text-xs text-ntc-green uppercase tracking-widest font-black mb-2 flex items-center gap-1.5">
+                                            <Icon name="fast-forward" size={14}/> Siguiente Ejercicio
+                                        </p>
+                                        <h3 className="text-white font-black text-xl mb-1 uppercase">{currentExercise.nextExercise.title}</h3>
+                                        <p className="text-ntc-lightGray text-sm mb-4">{currentExercise.nextExercise.desc}</p>
+                                        
+                                        {currentExercise.nextExercise.info && (
+                                            <div className="bg-ntc-dark p-3.5 rounded-xl border border-white/5">
+                                                <p className="text-xs text-ntc-lightGray uppercase font-bold mb-1">Instrucción Principal:</p>
+                                                <p className="text-sm font-medium text-white/90 leading-snug">{currentExercise.nextExercise.info.form}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
 
-                        {isRest && currentExercise.nextInfo && (
-                            <div className="mt-8 bg-ntc-gray w-full p-4 rounded-xl text-center border border-white/10 slide-up">
-                                <p className="text-sm text-ntc-green uppercase tracking-widest font-bold mb-1">Siguiente</p>
-                                <p className="text-white font-medium">{currentExercise.nextInfo}</p>
+                                {/* INFO DE EJERCICIO ACTIVO: Consejos y Errores */}
+                                {!isRest && currentExercise.info && (
+                                    <div className="w-full space-y-3 slide-up text-left">
+                                        <div className="bg-ntc-gray/80 p-4 rounded-2xl border-l-4 border-ntc-green backdrop-blur-sm">
+                                            <p className="text-[10px] text-ntc-green uppercase font-black tracking-wider mb-1 flex items-center gap-1"><Icon name="check-circle" size={12}/> Técnica Correcta</p>
+                                            <p className="text-sm font-medium text-white/90 leading-snug">{currentExercise.info.form}</p>
+                                        </div>
+                                        <div className="bg-ntc-gray/80 p-4 rounded-2xl border-l-4 border-red-500 backdrop-blur-sm">
+                                            <p className="text-[10px] text-red-400 uppercase font-black tracking-wider mb-1 flex items-center gap-1"><Icon name="x-circle" size={12}/> Error Común</p>
+                                            <p className="text-sm font-medium text-white/90 leading-snug">{currentExercise.info.mistake}</p>
+                                        </div>
+                                        <div className="bg-ntc-gray/80 p-4 rounded-2xl border-l-4 border-blue-400 backdrop-blur-sm">
+                                            <p className="text-[10px] text-blue-400 uppercase font-black tracking-wider mb-1 flex items-center gap-1"><Icon name="lightbulb" size={12}/> Consejo</p>
+                                            <p className="text-sm font-medium text-white/90 leading-snug">{currentExercise.info.tip}</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
 
-                    <div className="mt-auto pt-6">
+                    {/* Botón Flotante Inferior */}
+                    <div className="mt-auto p-6 bg-gradient-to-t from-black via-black/80 to-transparent shrink-0">
                         <button 
                             onClick={toggleTimer} 
-                            className={`w-full font-black py-6 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform flex justify-center gap-2 items-center ${isActive ? 'bg-transparent border-2 border-white text-white' : 'bg-ntc-green text-ntc-dark shadow-[0_0_20px_rgba(192,255,0,0.3)]'}`}
+                            className={`w-full font-black py-5 rounded-full text-xl uppercase tracking-widest active:scale-95 transition-transform flex justify-center gap-2 items-center ${isActive ? 'bg-transparent border-2 border-white text-white' : 'bg-ntc-green text-ntc-dark shadow-[0_0_20px_rgba(192,255,0,0.3)]'}`}
                         >
                             {isActive ? <><Icon name="pause" fill="currentColor"/> Pausar</> : <><Icon name="play" fill="currentColor"/> Comenzar</>}
                         </button>
@@ -572,7 +688,7 @@
 
         const Phase3 = ({ profile, setProfile, onComplete }) => {
             const [dial, setDial] = useState(1);
-            const [status, setStatus] = useState('active'); // active, stopped, cooling
+            const [status, setStatus] = useState('active');
             const [stopTimer, setStopTimer] = useState(15);
             const [cycles, setCycles] = useState(0);
 
@@ -581,7 +697,7 @@
                 if (status === 'stopped' && stopTimer > 0) {
                     interval = setInterval(() => {
                         setStopTimer(prev => prev - 1);
-                        if (stopTimer <= 5) triggerFeedback('bubble'); // Advertencia últimos segundos
+                        if (stopTimer <= 5) triggerFeedback('bubble'); 
                     }, 1000);
                 } else if (status === 'stopped' && stopTimer === 0) {
                     triggerFeedback('milestone');
@@ -613,7 +729,7 @@
             };
 
             return (
-                <div className={`flex-1 flex flex-col p-6 slide-up transition-colors duration-500 ${status === 'stopped' ? 'bg-red-900/30' : 'bg-ntc-dark'}`}>
+                <div className={`flex-1 flex flex-col p-6 slide-up transition-colors duration-500 overflow-y-auto ${status === 'stopped' ? 'bg-red-900/30' : 'bg-ntc-dark'}`}>
                     <div className="flex justify-between items-center mb-6">
                         <button onClick={onComplete} className="text-ntc-lightGray font-bold uppercase text-sm">Salir</button>
                         <span className="text-sm font-bold tracking-widest uppercase text-ntc-green">Ciclos: {cycles} / 5</span>
@@ -621,7 +737,7 @@
 
                     <div className="text-center mb-8">
                         <h2 className="text-3xl font-black uppercase mb-2">Medidor de Excitación</h2>
-                        <p className="text-ntc-lightGray text-sm">Ajusta el nivel según tu sensación física.</p>
+                        <p className="text-ntc-lightGray text-sm">Ajusta el nivel según tu sensación física real.</p>
                     </div>
 
                     <div className="flex-1 flex flex-col items-center justify-center w-full">
@@ -661,7 +777,7 @@
                             </div>
                         )}
 
-                        {/* Slider Custom NTC Style */}
+                        {/* Slider Custom */}
                         <div className="w-full mt-auto mb-8 bg-ntc-gray p-6 rounded-3xl border border-white/10">
                             <div className="flex justify-between text-xl font-black mb-4">
                                 <span className={dial <= 3 ? "text-white" : "text-ntc-lightGray"}>1</span>
